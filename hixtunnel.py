@@ -1,225 +1,205 @@
 #!/usr/bin/env python3
-
-import argparse
-import sys
+import click
 import requests
+import json
+import os
+import sys
 import asyncio
 import websockets
-import json
 import signal
-import os
-import subprocess
-import yaml
-from rich.console import Console
-from rich.panel import Panel
-from rich.prompt import Prompt
+from config import Config
+from pathlib import Path
 
-console = Console()
-
-CONFIG_DIR = os.path.expanduser("~/.hixtunnel")
-CONFIG_FILE = os.path.join(CONFIG_DIR, "config.yaml")
-
-def setup_client():
-    """Setup the client by making it executable and creating a symlink"""
-    try:
-        # Create config directory if it doesn't exist
-        if not os.path.exists(CONFIG_DIR):
-            os.makedirs(CONFIG_DIR)
-            
-        # Get the absolute path of the script
-        script_path = os.path.abspath(__file__)
+def save_token(token):
+    env_file = Path('.env')
+    if env_file.exists():
+        with open(env_file, 'r') as f:
+            lines = f.readlines()
         
-        # Make the script executable
-        os.chmod(script_path, 0o755)
-        
-        # Create symlink in /usr/local/bin
-        symlink_path = "/usr/local/bin/hixtunnel"
-        if os.path.exists(symlink_path):
-            os.remove(symlink_path)
-        os.symlink(script_path, symlink_path)
-        
-        # Create default config if it doesn't exist
-        if not os.path.exists(CONFIG_FILE):
-            default_config = {
-                "server": "http://localhost:8080",  # Default to local development server
-                "token": None
-            }
-            save_config(default_config)
-        
-        console.print("[green]HixTunnel client setup completed successfully![/green]")
-        console.print("You can now use 'hixtunnel' command from anywhere.")
-    except Exception as e:
-        console.print(f"[red]Setup error: {str(e)}[/red]")
-        console.print("[yellow]Try running with sudo if permission denied[/yellow]")
+        token_set = False
+        with open(env_file, 'w') as f:
+            for line in lines:
+                if line.startswith('HIXTUNNEL_API_TOKEN='):
+                    f.write(f'HIXTUNNEL_API_TOKEN={token}\n')
+                    token_set = True
+                else:
+                    f.write(line)
+            if not token_set:
+                f.write(f'HIXTUNNEL_API_TOKEN={token}\n')
+    else:
+        with open(env_file, 'w') as f:
+            f.write(f'HIXTUNNEL_API_TOKEN={token}\n')
 
-def save_config(config):
-    """Save configuration to file"""
-    try:
-        with open(CONFIG_FILE, 'w') as f:
-            yaml.dump(config, f)
-        os.chmod(CONFIG_FILE, 0o600)  # Set secure file permissions
-        return True
-    except Exception as e:
-        console.print(f"[red]Error saving config: {str(e)}[/red]")
-        return False
+class TunnelClient:
+    def __init__(self, api_token, server_url):
+        self.api_token = api_token
+        self.server_url = server_url.rstrip('/')
+        self.active_tunnels = {}
 
-def load_config():
-    """Load configuration from file"""
-    try:
-        if os.path.exists(CONFIG_FILE):
-            with open(CONFIG_FILE, 'r') as f:
-                return yaml.safe_load(f)
-    except Exception:
-        pass
-    return {"server": "http://localhost:8080", "token": None}
-
-class HixTunnel:
-    def __init__(self):
-        self.config = load_config()
-        self.server = self.config.get("server", "http://localhost:8080")
-        self.token = self.config.get("token")
-        self.ws = None
-        self.running = True
+    async def create_tunnel(self, protocol, local_host, local_port):
+        headers = {
+            'Authorization': f'Bearer {self.api_token}',
+            'Content-Type': 'application/json'
+        }
         
-        if not self.token:
-            console.print("[red]No API token found. Please set your token first:[/red]")
-            console.print("hixtunnel --token YOUR_API_TOKEN")
-            sys.exit(1)
+        data = {
+            'protocol': protocol,
+            'local_host': local_host,
+            'local_port': local_port
+        }
+        
+        response = requests.post(
+            f'{self.server_url}/api/tunnel.php',
+            headers=headers,
+            json=data
+        )
+        
+        if response.status_code != 200:
+            raise Exception(f"Failed to create tunnel: {response.json().get('message', 'Unknown error')}")
+        
+        tunnel_data = response.json()
+        tunnel_id = tunnel_data['tunnel_id']
+        remote_port = tunnel_data['remote_port']
+        
+        click.echo(f"Tunnel created: {protocol}://{self.server_url}:{remote_port} -> {local_host}:{local_port}")
+        
+        if protocol == 'tcp':
+            await self._handle_tcp_tunnel(local_host, local_port, remote_port)
+        else:
+            await self._handle_http_tunnel(local_host, local_port, remote_port)
+        
+        return tunnel_id
 
-    async def create_tunnel(self, protocol, host, port):
-        try:
-            # Create tunnel request with token authentication
-            headers = {"Authorization": f"Bearer {self.token}"}
-            response = requests.post(
-                f"{self.server}/api/tunnel.php",
-                json={
-                    "protocol": protocol.lower(),
-                    "local_port": port,
-                    "local_host": host
-                },
-                headers=headers
-            )
-            
-            # Handle non-JSON responses
+    async def _handle_tcp_tunnel(self, local_host, local_port, remote_port):
+        async def forward(reader, writer):
             try:
-                data = response.json()
-            except ValueError:
-                console.print(f"[red]Error: Invalid response from server: {response.text}[/red]")
-                return
-            
-            if response.status_code == 401:
-                console.print("[red]Invalid or expired API token. Please update your token:[/red]")
-                console.print("hixtunnel --token YOUR_API_TOKEN")
-                return
-            
-            if response.status_code != 200 or not data.get('success'):
-                console.print(f"[red]Error: {data.get('message', 'Unknown error')}[/red]")
-                return
-            
-            tunnel_data = data['data']
-            tunnel_id = tunnel_data["id"]
-            remote_url = tunnel_data["url"]
-            
-            # Print tunnel URL with appropriate protocol
-            protocol_prefix = "http://" if protocol.lower() == "http" else "tcp://"
-            console.print(f"[green]Connected, tunneling to: {protocol_prefix}{remote_url}[/green]")
-            
-            # Handle WebSocket connection
-            ws_url = f"ws{'s' if 'https' in self.server else ''}://{self.server.split('://')[-1]}/ws/tunnel/{tunnel_id}"
-            
-            async with websockets.connect(ws_url, extra_headers={"Authorization": f"Bearer {self.token}"}) as websocket:
-                self.ws = websocket
-                
-                # Set up signal handlers
-                signal.signal(signal.SIGINT, self.signal_handler)
-                signal.signal(signal.SIGTERM, self.signal_handler)
-                
-                while self.running:
-                    try:
-                        message = await websocket.recv()
-                        data = json.loads(message)
-                        
-                        if data.get("type") == "error":
-                            console.print(f"[red]Error: {data.get('message')}[/red]")
-                            break
-                            
-                    except websockets.exceptions.ConnectionClosed:
+                while True:
+                    data = await reader.read(8192)
+                    if not data:
                         break
-                    except Exception as e:
-                        console.print(f"[red]Connection error: {str(e)}[/red]")
-                        break
-                
-        except Exception as e:
-            console.print(f"[red]Error: {str(e)}[/red]")
-            sys.exit(1)
+                    writer.write(data)
+                    await writer.drain()
+            except Exception as e:
+                click.echo(f"Error in TCP forwarding: {e}", err=True)
+            finally:
+                writer.close()
+                await writer.wait_closed()
 
-    def signal_handler(self, signum, frame):
-        self.running = False
-        if self.ws:
-            asyncio.create_task(self.ws.close())
-        console.print("\n[yellow]Shutting down tunnel...[/yellow]")
-        sys.exit(0)
+        server = await asyncio.start_server(
+            lambda r, w: forward(r, w),
+            local_host,
+            local_port
+        )
+        
+        async with server:
+            await server.serve_forever()
 
-def main():
-    parser = argparse.ArgumentParser(description="HixTunnel - Secure Tunneling Service")
-    parser.add_argument("-P", "--protocol", choices=["HTTP", "TCP"],
-                      help="Protocol to use (HTTP or TCP)")
-    parser.add_argument("-H", "--host", default="localhost",
-                      help="Local host to tunnel from (default: localhost)")
-    parser.add_argument("-p", "--port", type=int,
-                      help="Local port to tunnel from")
-    parser.add_argument("-s", "--server",
-                      help="Set HixTunnel server URL")
-    parser.add_argument("--setup", action="store_true",
-                      help="Setup the client (make executable and create symlink)")
-    parser.add_argument("--token",
-                      help="Set your API token")
-    parser.add_argument("--show-config", action="store_true",
-                      help="Display current configuration")
+    async def _handle_http_tunnel(self, local_host, local_port, remote_port):
+        async def proxy_request(websocket):
+            async for message in websocket:
+                try:
+                    data = json.loads(message)
+                    async with aiohttp.ClientSession() as session:
+                        async with session.request(
+                            method=data['method'],
+                            url=f"http://{local_host}:{local_port}{data['path']}",
+                            headers=data['headers'],
+                            data=data.get('body')
+                        ) as response:
+                            response_data = {
+                                'status': response.status,
+                                'headers': dict(response.headers),
+                                'body': await response.text()
+                            }
+                            await websocket.send(json.dumps(response_data))
+                except Exception as e:
+                    click.echo(f"Error handling HTTP request: {e}", err=True)
 
-    args = parser.parse_args()
+        async with websockets.connect(
+            f"ws://{self.server_url}:{remote_port}"
+        ) as websocket:
+            await proxy_request(websocket)
 
-    # Handle setup
-    if args.setup:
-        setup_client()
-        return
+    def stop_tunnel(self, tunnel_id):
+        headers = {
+            'Authorization': f'Bearer {self.api_token}',
+        }
+        
+        response = requests.delete(
+            f'{self.server_url}/api/tunnel.php?id={tunnel_id}',
+            headers=headers
+        )
+        
+        if response.status_code != 200:
+            raise Exception(f"Failed to stop tunnel: {response.json().get('message', 'Unknown error')}")
+        
+        click.echo(f"Tunnel {tunnel_id} stopped")
 
-    # Handle configuration
-    config = load_config()
+@click.group()
+def cli():
+    """HixTunnel Client - Expose your local services to the internet"""
+    pass
+
+@cli.command()
+@click.option('--token', prompt='Enter your API token', help='Your HixTunnel API token')
+def config(token):
+    """Configure your API token"""
+    try:
+        save_token(token)
+        click.echo(f"API token configured successfully!")
+    except Exception as e:
+        click.echo(f"Error saving token: {e}", err=True)
+        sys.exit(1)
+
+@cli.command()
+@click.option('--protocol', type=click.Choice(['http', 'tcp']), required=True, help='Protocol to tunnel')
+@click.option('--local-port', type=int, required=True, help='Local port to tunnel')
+@click.option('--local-host', default='localhost', help='Local host to tunnel')
+def start(protocol, local_port, local_host):
+    """Start a new tunnel"""
+    try:
+        config = Config()
+    except ValueError as e:
+        click.echo("API token not configured. Please run 'python hixtunnel.py config' first.", err=True)
+        sys.exit(1)
+
+    client = TunnelClient(config.api_token, config.server_url)
     
-    if args.server:
-        config["server"] = args.server
-        if save_config(config):
-            console.print(f"[green]Server URL updated to: {args.server}[/green]")
-        return
+    async def run():
+        try:
+            tunnel_id = await client.create_tunnel(protocol, local_host, local_port)
+            click.echo(f"Tunnel {tunnel_id} is running. Press Ctrl+C to stop.")
+            
+            def signal_handler(sig, frame):
+                client.stop_tunnel(tunnel_id)
+                sys.exit(0)
+            
+            signal.signal(signal.SIGINT, signal_handler)
+            signal.pause()
+            
+        except Exception as e:
+            click.echo(f"Error: {e}", err=True)
+            sys.exit(1)
+    
+    asyncio.run(run())
 
-    if args.token:
-        config["token"] = args.token
-        if save_config(config):
-            console.print("[green]API token saved successfully![/green]")
-        return
+@cli.command()
+@click.argument('tunnel-id', type=int)
+def stop(tunnel_id):
+    """Stop a running tunnel"""
+    try:
+        config = Config()
+    except ValueError as e:
+        click.echo("API token not configured. Please run 'python hixtunnel.py config' first.", err=True)
+        sys.exit(1)
 
-    if args.show_config:
-        console.print("Current configuration:")
-        console.print(f"Server: {config.get('server', 'Not set')}")
-        console.print(f"Token: {config.get('token', 'Not set')}")
-        return
-
-    # Check if we have all required arguments for tunnel creation
-    if not all([args.protocol, args.port]):
-        parser.print_help()
-        return
-
-    tunnel = HixTunnel()
+    client = TunnelClient(config.api_token, config.server_url)
     
     try:
-        asyncio.run(tunnel.create_tunnel(args.protocol, args.host, args.port))
-    except KeyboardInterrupt:
-        console.print("\n[yellow]Tunnel closed by user[/yellow]")
-        sys.exit(0)
+        client.stop_tunnel(tunnel_id)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
-if __name__ == "__main__":
-    # If this is the first run, automatically setup the client
-    if not os.access(__file__, os.X_OK):
-        setup_client()
-    main()
+if __name__ == '__main__':
+    cli()
