@@ -91,7 +91,7 @@ class HixTunnel:
             # Create tunnel request with token authentication
             headers = {"Authorization": f"Bearer {self.token}"}
             response = requests.post(
-                f"{self.server}/api/tunnel/create",
+                f"{self.server}/api/tunnel.php",
                 json={
                     "protocol": protocol.lower(),
                     "local_port": port,
@@ -100,17 +100,24 @@ class HixTunnel:
                 headers=headers
             )
             
+            # Handle non-JSON responses
+            try:
+                data = response.json()
+            except ValueError:
+                console.print(f"[red]Error: Invalid response from server: {response.text}[/red]")
+                return
+            
             if response.status_code == 401:
                 console.print("[red]Invalid or expired API token. Please update your token:[/red]")
                 console.print("hixtunnel --token YOUR_API_TOKEN")
                 return
             
-            if response.status_code != 200:
-                console.print(f"[red]Error: {response.json().get('error', 'Unknown error')}[/red]")
+            if response.status_code != 200 or not data.get('success'):
+                console.print(f"[red]Error: {data.get('message', 'Unknown error')}[/red]")
                 return
             
-            tunnel_data = response.json()
-            tunnel_id = tunnel_data["tunnel_id"]
+            tunnel_data = data['data']
+            tunnel_id = tunnel_data["id"]
             remote_url = tunnel_data["url"]
             
             # Print tunnel URL with appropriate protocol
