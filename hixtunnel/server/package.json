@@ -1,0 +1,17 @@
+{
+  "name": "hixtunnel-server",
+  "version": "1.0.0",
+  "description": "HixTunnel Server",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2",
+    "mysql2": "^3.6.5",
+    "dotenv": "^16.3.1",
+    "uuid": "^9.0.1",
+    "http-proxy": "^1.18.1"
+  }
+}

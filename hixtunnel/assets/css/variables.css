@@ -1,0 +1,123 @@
+:root {
+    /* Color System */
+    --primary-50: #e6f3ff;
+    --primary-100: #bde0ff;
+    --primary-200: #94cdff;
+    --primary-300: #6bb9ff;
+    --primary-400: #42a6ff;
+    --primary-500: #1993ff;
+    --primary-600: #0077e6;
+    --primary-700: #005cb3;
+    --primary-800: #004280;
+    --primary-900: #00284d;
+
+    --success-50: #e6fff0;
+    --success-100: #b3ffd4;
+    --success-200: #80ffb9;
+    --success-300: #4dff9d;
+    --success-400: #1aff82;
+    --success-500: #00e661;
+    --success-600: #00b34d;
+    --success-700: #008039;
+    --success-800: #004d22;
+    --success-900: #001a0b;
+
+    --danger-50: #ffe6e6;
+    --danger-100: #ffb3b3;
+    --danger-200: #ff8080;
+    --danger-300: #ff4d4d;
+    --danger-400: #ff1a1a;
+    --danger-500: #e60000;
+    --danger-600: #b30000;
+    --danger-700: #800000;
+    --danger-800: #4d0000;
+    --danger-900: #1a0000;
+
+    --warning-50: #fff8e6;
+    --warning-100: #ffeab3;
+    --warning-200: #ffdc80;
+    --warning-300: #ffcd4d;
+    --warning-400: #ffbf1a;
+    --warning-500: #e6a800;
+    --warning-600: #b38300;
+    --warning-700: #805e00;
+    --warning-800: #4d3900;
+    --warning-900: #1a1300;
+
+    --gray-50: #f8f9fa;
+    --gray-100: #f1f3f5;
+    --gray-200: #e9ecef;
+    --gray-300: #dee2e6;
+    --gray-400: #ced4da;
+    --gray-500: #adb5bd;
+    --gray-600: #868e96;
+    --gray-700: #495057;
+    --gray-800: #343a40;
+    --gray-900: #212529;
+
+    /* Typography */
+    --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-family-heading: var(--font-family-base);
+    --font-family-monospace: 'JetBrains Mono', 'SF Mono', Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+    --font-size-xs: 0.75rem;   /* 12px */
+    --font-size-sm: 0.875rem;  /* 14px */
+    --font-size-base: 1rem;    /* 16px */
+    --font-size-lg: 1.125rem;  /* 18px */
+    --font-size-xl: 1.25rem;   /* 20px */
+    --font-size-2xl: 1.5rem;   /* 24px */
+    --font-size-3xl: 1.875rem; /* 30px */
+    --font-size-4xl: 2.25rem;  /* 36px */
+
+    /* Spacing */
+    --spacing-1: 0.25rem;  /* 4px */
+    --spacing-2: 0.5rem;   /* 8px */
+    --spacing-3: 0.75rem;  /* 12px */
+    --spacing-4: 1rem;     /* 16px */
+    --spacing-5: 1.25rem;  /* 20px */
+    --spacing-6: 1.5rem;   /* 24px */
+    --spacing-8: 2rem;     /* 32px */
+    --spacing-10: 2.5rem;  /* 40px */
+    --spacing-12: 3rem;    /* 48px */
+    --spacing-16: 4rem;    /* 64px */
+
+    /* Border Radius */
+    --radius-sm: 0.125rem;    /* 2px */
+    --radius-base: 0.25rem;   /* 4px */
+    --radius-md: 0.375rem;    /* 6px */
+    --radius-lg: 0.5rem;      /* 8px */
+    --radius-xl: 0.75rem;     /* 12px */
+    --radius-2xl: 1rem;       /* 16px */
+    --radius-3xl: 1.5rem;     /* 24px */
+    --radius-full: 9999px;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-base: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+
+    /* Z-index */
+    --z-negative: -1;
+    --z-elevate: 1;
+    --z-sticky: 100;
+    --z-drawer: 200;
+    --z-dropdown: 300;
+    --z-modal: 400;
+    --z-popover: 500;
+    --z-toast: 600;
+    --z-tooltip: 700;
+
+    /* Transitions */
+    --transition-base: all 0.2s ease-in-out;
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    /* Container Max Widths */
+    --container-sm: 640px;
+    --container-md: 768px;
+    --container-lg: 1024px;
+    --container-xl: 1280px;
+    --container-2xl: 1536px;
+}
