@@ -17,6 +17,9 @@ fi
 # Create directory structure
 mkdir -p ~/.hixtunnel/client/{src,bin}
 
+# Copy source files
+cp -r ./client/src/* ~/.hixtunnel/client/src/
+
 # Create package.json
 cat > ~/.hixtunnel/client/package.json << 'EOL'
 {
@@ -49,11 +52,13 @@ EOL
 # Make binary executable
 chmod +x ~/.hixtunnel/client/bin/hixtunnel
 
-# Create symlink
-sudo ln -sf ~/.hixtunnel/client/bin/hixtunnel /usr/local/bin/hixtunnel
+# Install globally with proper permissions
+sudo npm link
+sudo chmod 755 /usr/local/bin/hixtunnel
 
-# Create config directory
+# Create config directory with proper permissions
 mkdir -p ~/.hixtunnel/config
+chmod 700 ~/.hixtunnel/config
 
 echo -e "${GREEN}HixTunnel Client installation complete!${NC}"
 echo "You can now use the 'hixtunnel' command."
