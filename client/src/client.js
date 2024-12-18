@@ -6,6 +6,8 @@ const net = require('net');
 const { getStoredToken, storeToken } = require('./config');
 const { displayStatus, logRequest } = require('./utils');
 
+const SERVER_URL = 'http://16.170.173.161:8080';
+
 const argv = yargs(hideBin(process.argv))
     .command('auth', 'Authenticate with token', {
         token: {
@@ -50,10 +52,19 @@ if (!token) {
     process.exit(1);
 }
 
-const socket = io('http://16.170.173.161:8080');
+console.log('Connecting to tunnel server...');
+
+const socket = io(SERVER_URL, {
+    reconnection: true,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    reconnectionAttempts: 5
+});
+
 const tcpConnections = new Map();
 
 socket.on('connect', () => {
+    console.log('Connected to server, registering tunnel...');
     socket.emit('register', {
         host: argv.host,
         port: argv.port,
@@ -64,7 +75,7 @@ socket.on('connect', () => {
 
 socket.on('registered', async (data) => {
     try {
-        const response = await axios.get(`http://16.170.173.161:8080/api/user`, {
+        const response = await axios.get(`${SERVER_URL}/api/user`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         const username = response.data.username;
@@ -77,9 +88,26 @@ socket.on('registered', async (data) => {
     }
 });
 
+socket.on('connect_error', (error) => {
+    console.error('Connection error:', error.message);
+    console.log('Please check if the server is running and try again.');
+});
+
 socket.on('error', (error) => {
     console.error('Server error:', error.message);
+    if (error.message === 'Invalid token') {
+        console.log('Please check your token and try authenticating again:');
+        console.log('hixtunnel auth --token YOUR_TOKEN');
+    }
     process.exit(1);
+});
+
+socket.on('disconnect', (reason) => {
+    console.log(`Disconnected from server: ${reason}`);
+    if (reason === 'io server disconnect') {
+        console.log('Server disconnected the client. Please check your token and try again.');
+        process.exit(1);
+    }
 });
 
 socket.on('request', async (request) => {
@@ -112,7 +140,6 @@ socket.on('request', async (request) => {
     }
 });
 
-// TCP connection handling
 socket.on('tcp:connect', (data) => {
     const client = new net.Socket();
     
@@ -153,14 +180,6 @@ socket.on('tcp:end', (data) => {
         client.end();
         tcpConnections.delete(data.tcpId);
     }
-});
-
-socket.on('disconnect', () => {
-    console.log('Disconnected from tunnel server');
-    for (const client of tcpConnections.values()) {
-        client.destroy();
-    }
-    tcpConnections.clear();
 });
 
 process.on('SIGINT', () => {
