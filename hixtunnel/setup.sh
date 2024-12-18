@@ -17,12 +17,13 @@ fi
 REAL_USER=${SUDO_USER:-$USER}
 
 # Fix permissions for all files
-chmod 755 installclient.sh setup.sh
-chmod -R 755 client
+chmod 755 installclient.sh installserver.sh setup.sh
+chmod -R 755 client server
 
 # Fix ownership
 chown -R $REAL_USER:$REAL_USER .
 
 echo -e "${GREEN}Setup complete!${NC}"
 echo "Now you can run:"
+echo "1. sudo ./installserver.sh  (to install the server)"
 echo "2. sudo ./installclient.sh  (to install the client)"

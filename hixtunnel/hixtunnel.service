@@ -1,0 +1,32 @@
+[Unit]
+Description=HixTunnel Service
+After=network.target mysql.service redis.service
+Requires=mysql.service redis.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/hixtunnel
+ExecStart=/usr/bin/php /var/www/hixtunnel/tunnel_service.php
+Restart=always
+RestartSec=3
+
+# Resource limits
+CPUQuota=85%
+MemoryLimit=512M
+TasksMax=4096
+
+# Logging
+StandardOutput=append:/var/log/hixtunnel/service.log
+StandardError=append:/var/log/hixtunnel/error.log
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+
+[Install]
+WantedBy=multi-user.target
